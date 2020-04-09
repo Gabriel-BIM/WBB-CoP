@@ -1,0 +1,808 @@
+// LCD module connections
+sbit LCD_RS at LATG0_bit;
+sbit LCD_EN at LATA6_bit;
+sbit LCD_D4 at LATA7_bit;
+sbit LCD_D5 at LATG14_bit;
+sbit LCD_D6 at LATG12_bit;
+sbit LCD_D7 at LATG13_bit;
+
+sbit LCD_RS_Direction at TRISG0_bit;
+sbit LCD_EN_Direction at TRISA6_bit;
+sbit LCD_D4_Direction at TRISA7_bit;
+sbit LCD_D5_Direction at TRISG14_bit;
+sbit LCD_D6_Direction at TRISG12_bit;
+sbit LCD_D7_Direction at TRISG13_bit;
+// End LCD module connections
+
+unsigned long sensor0,sensorcero,sensor1,sensoruno,sensor2,sensordos,sensor3,sensortres,F0,F1,F2,F3,S0calibrado,S1calibrado,S2calibrado,S3calibrado;
+char S0[11],S1[11],S2[11],S3[11],Factor0[11],Factor1[11],Factor2[11],Factor3[11],cont[7],*cadena[35],*res,*limitx[5],*limity[5],*ReadBuffer[65],obtx[9],obty[9],CMDIST[15],CMDISTML[15],CMDISTAP[15],CRDIST[15],CsML[15],CsAP[15],CTOTEX[15],CTOTEXML[15],CTOTEXAP[15],CMVELO[15],CMVELOML[15],CMVELOAP[15],CsRD[15],CAREACC[15],CsAPML[15],CAREACE[15],CAREASW[15],CMFREQ[15],CMFREQML[15],CMFREQAP[15],CFDCC[15],CFDCE[15],CRAX[15],CRAY[15];
+int contador,flag=0,bandera=0,hora, minutos, segundos, dia, mes, ano, dia_semana,i=0;
+float COPX,COPY,S0cal,S1cal,S2cal,S3cal,FX=0,FY=0,SUMARD=0,MML=0,MAP=0,SUMARD22=0,RML=0,RAP=0,MDIST=0,MDISTML=0,MDISTAP=0,RDIST=0,sML=0,sAP=0,vx0=0,vx1=0,vy0=0,vy1=0,mix=0,mx=0,miy=0,my=0,TOTEX=0,TOTEXML=0,TOTEXAP=0,MVELO=0,MVELOML=0,MVELOAP=0,sRD=0,AREACC=0,sAPML=0,RAPML=0,AREACE=0,AREASW=0,sumaswarea=0,MFREQ=0,MFREQML=0,MFREQAP=0,dFDCC=0,dFDCE=0,FDCC=0,FDCE=0,RAX=0,RAY=0;
+char identificador[]  = "                           ";
+char identificador2[] = "                             ";
+char date[] = "        ";
+char hour[] = "        ";
+
+void initFastSPI(void)
+{
+     SPI1_Init_Advanced(_SPI_MASTER, _SPI_8_BIT, _SPI_PRESCALE_SEC_1, _SPI_PRESCALE_PRI_4, _SPI_SS_DISABLE, _SPI_DATA_SAMPLE_MIDDLE, _SPI_CLK_IDLE_HIGH, _SPI_ACTIVE_2_IDLE);
+    //SPI1_Init_Advanced(_SPI_MASTER_OSC_DIV4, _SPI_DATA_SAMPLE_MIDDLE, _SPI_CLK_IDLE_LOW, _SPI_LOW_2_HIGH);
+}
+
+void Escribir_DS1307(unsigned char direccion_esclavo,unsigned char direccion_memoria,unsigned char dato){
+                      I2C1_Start();
+                      I2C1_Write(direccion_esclavo);
+                      I2C1_Write(direccion_memoria);    // MEMORIA L
+                      I2C1_Write(dato); // DATO
+                      I2C1_Stop();
+}
+
+int Leer_DS1307(void){
+                      I2C1_Start();
+                      I2C1_Write(0xD0);
+                      I2C1_Write(0x00);
+                      I2C1_Restart();
+                      I2C1_Write(0xD1);
+                      segundos=I2C1_Read(_I2C_ACK);
+                      minutos=I2C1_Read(_I2C_ACK);
+                      hora=I2C1_Read(_I2C_ACK);
+                      dia_semana=I2C1_Read(_I2C_ACK);
+                      dia=I2C1_Read(_I2C_ACK);
+                      mes=I2C1_Read(_I2C_ACK);
+                      ano=I2C1_Read(_I2C_NACK);
+                      I2C1_Stop();
+}
+
+void set_datos_DS1307(int segundos, int minutos, int hora,int dia_semana, int dia, int mes, int ano){
+    int i;
+    segundos = Dec2Bcd(segundos);
+    minutos = Dec2Bcd(minutos);
+    hora = Dec2Bcd(hora);
+    dia_semana = Dec2Bcd(dia_semana);
+    dia = Dec2Bcd(dia);
+    mes = Dec2Bcd(mes);
+    ano = Dec2Bcd(ano);
+
+    Escribir_DS1307(0xD0,0x00,segundos);
+    Escribir_DS1307(0xD0,0x01,minutos);
+    Escribir_DS1307(0xD0,0x02,hora);
+    Escribir_DS1307(0xD0,0x03,dia_semana);
+    Escribir_DS1307(0xD0,0x04,dia);
+    Escribir_DS1307(0xD0,0x05,mes);
+    Escribir_DS1307(0xD0,0x06,ano);
+}
+
+void Presenta_datos(void){
+
+   Lcd_Out(1,1,"Fecha:");
+      date[0] = MSB(dia);
+      date[1] = LSB(dia);
+      date[2] = '/';
+      date[3] = MSB(mes);
+      date[4] = LSB(mes);
+      date[5] = '/';
+      date[6] = MSB(ano);
+      date[7] = LSB(ano);
+    Lcd_Out(1,7,date);
+
+   Lcd_Out(2,1,"Hora:");
+      hour[0] = MSB(hora);
+      hour[1] = LSB(hora);
+      hour[2] = ':';
+      hour[3] = MSB(minutos);
+      hour[4] = LSB(minutos);
+      hour[5] = ':';
+      hour[6] = MSB(segundos);
+      hour[7] = LSB(segundos);
+    Lcd_Out(2,6,hour);
+
+                switch(dia_semana){
+                  case 1: Lcd_Out(2,14," Lu"); break;
+                  case 2: Lcd_Out(2,14," Ma"); break;
+                  case 3: Lcd_Out(2,14," Mi"); break;
+                  case 4: Lcd_Out(2,14," Ju"); break;
+                  case 5: Lcd_Out(2,14," Vi"); break;
+                  case 6: Lcd_Out(2,14," Sa"); break;
+                  case 7: Lcd_Out(2,14," Do"); break;
+            }
+}
+
+void iniADS1222(void){
+int x, n;
+  PORTC.RC1=1;   //Activa pin mux
+  for (n =0; n <3; n++){                                          // realizamos 3 lecturas completas
+    Delay_ms(10);
+    for(x =0; x <24; x++){                                        // 24 pulsos-> 24 bits
+      //digitalWrite(sclk, HIGH);                                   // HIGH pulse, algo más de 33us
+      //digitalWrite(sclk, LOW);                                    // LOW pulse, algo más de 33us
+      PORTC.RC2=0;//Desactiva pin sclk
+      //delayMicroseconds(30);
+      Delay_us(30);
+    }
+  }
+  Delay_ms(10);
+  //while (digitalRead(Dout1) + digitalRead(Dout2)){}               // esperamos datos preparados
+  while (PORTC.RC3 + PORTC.RC4){}
+  for(x =0; x <26; x++){                                          // auto-calibrado 26 pulsos-> 24bits + 2  On calibración
+    PORTC.RC2=1;//activa pin sclk
+    Delay_us(5);
+    PORTC.RC2=0;//Desactiva pin sclk
+    Delay_us(5);
+   }
+   while (PORTC.RC3 + PORTC.RC4){};
+}
+
+void read_ads1222CHANNELS0(){
+int x;
+  PORTC.RC1=0; //con 0 seleccionamos mux 0 (canales 0 de cada ads1222)
+  Delay_us(10);
+  do{
+     Delay_us(2);
+  }while (PORTC.RC3 + PORTC.RC4);
+    for(x =23; x >=0; x--){                                          // del bit 23 al 0
+    PORTC.RC2=1;//Activa sclk
+    //delay_us(1);
+
+    sensor0 |= PORTC.RC3;
+    if (x!= 0) sensor0 = sensor0 << 1;
+
+    sensor2 |= PORTC.RC4;
+    if (x!= 0) sensor2 = sensor2 << 1;
+
+    /*PORTD.RD9 ? bitWrite(&sensor0, x, 1): bitWrite(&sensor0, x, 0);
+    PORTD.RD2 ? bitWrite(&sensor2, x, 1): bitWrite(&sensor2, x, 0);*/
+
+    PORTC.RC2=0;//Desactiva sclk
+    Delay_us(1);
+  }                                           // realizamos 1 pulso mas (pulso 25) -> forzamos Dout1 y Dout2 a 1
+}
+
+void read_ads1222CHANNELS1(){
+int x;
+  PORTC.RC1=1; //con 1 seleccionamos mux 1 (canales 1 de cada ads1222)
+  Delay_us(10);
+  do{
+     Delay_us(2);
+  }while (PORTC.RC3 + PORTC.RC4);
+    for(x =23; x >=0; x--){                                          // del bit 23 al 0
+    PORTC.RC2=1;//Activa sclk
+    //Delay_us(1);
+
+    sensor1 |= PORTC.RC3;
+    if (x!= 0) sensor1 = sensor1 << 1;
+
+    sensor3 |= PORTC.RC4;
+    if (x!= 0) sensor3 = sensor3 << 1;
+
+    /*PORTD.RD9 ? bitWrite(&sensor1, x, 1): bitWrite(&sensor1, x, 0);
+    PORTD.RD2 ? bitWrite(&sensor3, x, 1): bitWrite(&sensor3, x, 0);*/
+
+    PORTC.RC2=0;//Desactiva sclk
+    Delay_us(1);
+  }                                           // realizamos 1 pulso mas (pulso 25) -> forzamos Dout1 y Dout2 a 1
+}
+
+//Timer1
+//Prescaler 1:64; PR1 Preload = 9212; Actual Interrupt Time = 19.998914518 ms
+
+void InitTimer1(){
+  T1CON         = 0x0020;
+  T1IE_bit         = 1;
+  T1IF_bit         = 0;
+  IPC0                 = IPC0 | 0x1000;
+  PR1                 = 6912;
+}
+
+void Timer1Interrupt() iv IVT_ADDR_T1INTERRUPT{
+  T1IF_bit         = 0;
+        PORTF.RF0=1;
+        read_ads1222CHANNELS0();
+        Delay_us(1);
+        read_ads1222CHANNELS1();
+        //PORTD.RD3=0;
+
+        S0calibrado=sensorcero-(ceil(F0/100));    //   POR SER DE TIPO UNSIGNED LONG (S0calibrado,S1calibrado,etc),
+        S1calibrado=sensoruno-(ceil(F1/100));    //    SI ESTAS RESTAS RESULTAN NEGATIVAS, ENTONCES SUS RESULTADOS
+        S2calibrado=sensordos-(ceil(F2/100));    //    SON CERO.
+        S3calibrado=sensortres-(ceil(F3/100));
+
+        S0cal = (float)S0calibrado;      // de unsigned long a flotantes para poder calcular el CoP
+        S1cal = (float)S1calibrado;
+        S2cal = (float)S2calibrado;
+        S3cal = (float)S3calibrado;
+
+        COPX=216.5*(((S3cal+S2cal)-(S0cal+S1cal))/(S0cal+S1cal+S2cal+S3cal));
+        COPY=119*(((S0cal+S2cal)-(S3cal+S1cal))/(S0cal+S1cal+S2cal+S3cal));
+
+        if(COPX<0){
+        sprintf(limitx,"%.4f",COPX);}
+        if(COPX>0){
+        sprintf(limitx,"%.5f",COPX);}
+        if(COPX<=-10){
+        sprintf(limitx,"%.3f",COPX);}
+        if(COPX>=10){
+        sprintf(limitx,"%.4f",COPX);}
+        if(COPX<=-100){
+        sprintf(limitx,"%.2f",COPX);}
+        if(COPX>=100){
+        sprintf(limitx,"%.3f",COPX);}
+
+        if(COPY<0){
+        sprintf(limity,"%.4f",COPY);}
+        if(COPY>0){
+        sprintf(limity,"%.5f",COPY);}
+        if(COPY<=-10){
+        sprintf(limity,"%.3f",COPY);}
+        if(COPY>=10){
+        sprintf(limity,"%.4f",COPY);}
+        if(COPY<=-100){
+        sprintf(limity,"%.2f",COPY);}
+        if(COPY>=100){
+        sprintf(limity,"%.3f",COPY);}
+
+        cadena[0]=0;
+        res=strcat(cadena,"");
+        res=strcat(res,cont);
+        res=strcat(res,S0);
+        res=strcat(res,S1);
+        res=strcat(res,S2);
+        res=strcat(res,S3);
+        //res=strcat(res,"X");
+        res=strcat(res,"  ");
+        res=strcat(res,limitx);
+        //res=strcat(res,"Y");
+        res=strcat(res," ");
+        res=strcat(res,limity);
+        res=strcat(res,"\r");
+        res=strcat(res,"\n");
+        
+        FAT32_Write(fhandle[0],res, 65);
+        
+        contador=contador+1;
+        PORTF.RF0=0;
+}
+
+void main() {
+ADPCFG = 0xFFFF;
+
+TRISGbits.TRISG0=0;// SALIDA RS
+TRISAbits.TRISA6=0;// SALIDA EN
+TRISAbits.TRISA7=0;// SALIDA D4
+TRISGbits.TRISG14=0;// SALIDA D5
+TRISGbits.TRISG12=0;// SALIDA D6
+TRISGbits.TRISG13=0;// SALIDA D7
+
+TRISGbits.TRISG15=0;// SALIDA ON WII
+TRISCbits.TRISC1=0;// SALIDA MUX WII
+TRISCbits.TRISC2=0;// SALIDA SCLK WII
+TRISCbits.TRISC3=1;// ENTRADA DOUT1 WII
+TRISCbits.TRISC4=1;// ENTRADA DOUT2 WII
+
+TRISFbits.TRISF0=0;// SALIDA LED WII
+
+TRISFbits.TRISF6=0;// SALIDA SCK
+TRISFbits.TRISF7=0;// SALIDA SDI
+TRISFbits.TRISF8=0;// SALIDA SDO
+TRISGbits.TRISG9=0;// SALIDA CS
+
+TRISGbits.TRISG2=1;// ENTRADA SDA
+TRISGbits.TRISG3=1;// ENTRADA SCL
+
+PORTG.RG15=1;   //activa on wii
+PORTC.RC2=0;   //desactiva SCLK
+PORTC.RC1=0;   //desactiva MUX
+
+TRISDbits.TRISD7=1;// ENTRADA   SET RELOJ
+TRISGbits.TRISG1=1;// ENTRADA    +  RELOJ
+TRISFbits.TRISF1=1;// ENTRADA    -  RELOJ
+
+          UART2_Init(115200);
+          Delay_ms(50);
+          Lcd_Init();                        // Initialize LCD
+
+          Lcd_Cmd(_LCD_CLEAR);               // Clear display
+          Lcd_Cmd(_LCD_CURSOR_OFF);          // Cursor off
+          I2C1_Init(100000);
+
+
+    initFastSPI();
+    
+
+          iniADS1222();
+          // Lectura para estabilizar el sistema
+          read_ads1222CHANNELS0();
+          Delay_us(1);
+          read_ads1222CHANNELS1();
+
+ a:
+  Lcd_Cmd(_LCD_CLEAR);               // Clear display
+  Lcd_Cmd(_LCD_CURSOR_OFF);          // Cursor off
+  Lcd_Out(1,1,"  !CALIBRANDO!  ");                 // Write text in first row
+  Lcd_Out(2,1," NO SUBIRSE AuN ");                 // Write text in second row
+
+
+
+//INICIA CALIBRACIÓN
+       while(1){
+        read_ads1222CHANNELS0();
+        Delay_us(1);
+        read_ads1222CHANNELS1();
+        IntToStr(contador,cont);
+        UART2_Write_Text(cont);
+        UART2_Write_Text(" ");
+        LongWordToStr(sensorcero,S0);
+        UART2_Write_Text(S0);
+        UART2_Write_Text(" ");
+        LongWordToStr(sensoruno,S1);
+        UART2_Write_Text(S1);
+        UART2_Write_Text(" ");
+        LongWordToStr(sensordos,S2);
+        UART2_Write_Text(S2);
+        UART2_Write_Text(" ");
+        LongWordToStr(sensortres,S3);
+        UART2_Write_Text(S3);
+        UART2_Write_Text("\r\n");
+
+        if (contador==99){
+        LongWordToStr(F0,Factor0);
+        UART2_Write_Text(Factor0);
+        UART2_Write_Text(" ");
+        LongWordToStr(F1,Factor1);
+        UART2_Write_Text(Factor1);
+        UART2_Write_Text(" ");
+        LongWordToStr(F2,Factor2);
+        UART2_Write_Text(Factor2);
+        UART2_Write_Text(" ");
+        LongWordToStr(F3,Factor3);
+        UART2_Write_Text(Factor3);
+        UART2_Write_Text("\r\n");
+
+        LongWordToStr(ceil(F0/100),Factor0);
+        UART2_Write_Text(Factor0);
+        UART2_Write_Text(" ");
+        LongWordToStr(ceil(F1/100),Factor1);
+        UART2_Write_Text(Factor1);
+        UART2_Write_Text(" ");
+        LongWordToStr(ceil(F2/100),Factor2);
+        UART2_Write_Text(Factor2);
+        UART2_Write_Text(" ");
+        LongWordToStr(ceil(F3/100),Factor3);
+        UART2_Write_Text(Factor3);
+        UART2_Write_Text("\r\n");
+         
+        goto h;
+        }
+        contador=contador+1;
+       }
+//TERMINA CALIBRACIÓN
+h:
+     contador=0;
+         
+     Leer_DS1307();
+g:
+        Lcd_Out(1,1,"!WII CALIBRADA! ");                 // Write text in first row
+        Lcd_Out(2,1,"  PUEDE SUBIRSE ");                 // Write text in second row
+
+        if(S0calibrado<15000 && S1calibrado<15000 && S2calibrado<15000 && S3calibrado<15000){  //DETECCION DE UMBRAL(DETECTA SI LA PERSONA YA SE SUBIO A LA WBB)
+        if(PORTD.RD7==1){
+            Delay_ms(2000);
+               if(PORTD.RD7==1){
+               PORTF.RF0=1;
+               Delay_ms(1000);
+               Lcd_Cmd(_LCD_CLEAR);               // Clear display
+               Presenta_datos();
+               }else{goto jj;}
+
+               aa:
+                     if(PORTF.RF1==1){
+                     Delay_ms(200);
+                     dia=Bcd2Dec(dia);
+                     dia=dia+1;
+                     if(dia == 32){
+                     dia = 1;}
+                     dia=Dec2Bcd(dia);
+                     Presenta_datos();
+                     }
+                     if(PORTG.RG1==1){
+                     Delay_ms(200);
+                     dia=Bcd2Dec(dia);
+                     dia=dia-1;
+                     if(dia == 0){
+                     dia = 31;}
+                     dia=Dec2Bcd(dia);
+                     Presenta_datos();
+                     }
+
+                     if(PORTD.RD7==1){
+                     Delay_ms(500);
+                     goto bb;
+                     }else{goto aa;}
+
+               bb:
+                     if(PORTF.RF1==1){
+                     Delay_ms(200);
+                     mes=Bcd2Dec(mes);
+                     mes=mes+1;
+                     if(mes == 13){
+                     mes = 1;}
+                     mes=Dec2Bcd(mes);
+                     Presenta_datos();
+                     }
+                     if(PORTG.RG1==1){
+                     Delay_ms(200);
+                     mes=Bcd2Dec(mes);
+                     mes=mes-1;
+                     if(mes == 0){
+                     mes = 12;}
+                     mes=Dec2Bcd(mes);
+                     Presenta_datos();
+                     }
+
+                     if(PORTD.RD7==1){
+                     Delay_ms(500);
+                     goto cc;
+                     }else{goto bb;}
+
+               cc:
+                     if(PORTF.RF1==1){
+                     Delay_ms(200);
+                     ano=Bcd2Dec(ano);
+                     ano=ano+1;
+                     if(ano == 100){
+                     ano = 0;}
+                     ano=Dec2Bcd(ano);
+                     Presenta_datos();
+                     }
+                     if(PORTG.RG1==1){
+                     Delay_ms(200);
+                     ano=Bcd2Dec(ano);
+                     ano=ano-1;
+                     if(ano == -1){
+                     ano = 99;}
+                     ano=Dec2Bcd(ano);
+                     Presenta_datos();
+                     }
+
+                     if(PORTD.RD7==1){
+                     Delay_ms(500);
+                     goto dd;
+                     }else{goto cc;}
+               dd:
+                     if(PORTF.RF1==1){
+                     Delay_ms(200);
+                     hora=Bcd2Dec(hora);
+                     hora=hora+1;
+                     if(hora == 24){
+                     hora = 0;}
+                     hora=Dec2Bcd(hora);
+                     Presenta_datos();
+                     }
+                     if(PORTG.RG1==1){
+                     Delay_ms(200);
+                     hora=Bcd2Dec(hora);
+                     hora=hora-1;
+                     if(hora == -1){
+                     hora = 23;}
+                     hora=Dec2Bcd(hora);
+                     Presenta_datos();
+                     }
+
+                     if(PORTD.RD7==1){
+                     Delay_ms(500);
+                     goto ee;
+                     }else{goto dd;}
+               ee:
+                     if(PORTF.RF1==1){
+                     Delay_ms(200);
+                     minutos=Bcd2Dec(minutos);
+                     minutos=minutos+1;
+                     if(minutos == 60){
+                     minutos = 0;}
+                     minutos=Dec2Bcd(minutos);
+                     Presenta_datos();
+                     }
+                     if(PORTG.RG1==1){
+                     Delay_ms(200);
+                     minutos=Bcd2Dec(minutos);
+                     minutos=minutos-1;
+                     if(minutos == -1){
+                     minutos = 59;}
+                     minutos=Dec2Bcd(minutos);
+                     Presenta_datos();
+                     }
+
+                     if(PORTD.RD7==1){
+                     Delay_ms(500);
+                     goto ff;
+                     }else{goto ee;}
+               ff:
+                     if(PORTF.RF1==1){
+                     Delay_ms(200);
+                     segundos=Bcd2Dec(segundos);
+                     segundos=segundos+1;
+                     if(segundos == 60){
+                     segundos = 0;}
+                     segundos=Dec2Bcd(segundos);
+                     Presenta_datos();
+                     }
+                     if(PORTG.RG1==1){
+                     Delay_ms(200);
+                     segundos=Bcd2Dec(segundos);
+                     segundos=segundos-1;
+                     if(segundos == -1){
+                     segundos = 59;}
+                     segundos=Dec2Bcd(segundos);
+                     Presenta_datos();
+                     }
+
+                     if(PORTD.RD7==1){
+                     Delay_ms(500);
+                     goto gg;
+                     }else{goto ff;}
+               gg:
+                     if(PORTF.RF1==1){
+                     Delay_ms(200);
+                     dia_semana=Bcd2Dec(dia_semana);
+                     dia_semana=dia_semana+1;
+                     if(dia_semana == 8){
+                     dia_semana = 1;}
+                     dia_semana=Dec2Bcd(dia_semana);
+                     Presenta_datos();
+                     }
+                     if(PORTG.RG1==1){
+                     Delay_ms(200);
+                     dia_semana=Bcd2Dec(dia_semana);
+                     dia_semana=dia_semana-1;
+                     if(dia_semana == 0){
+                     dia_semana = 7;}
+                     dia_semana=Dec2Bcd(dia_semana);
+                     Presenta_datos();
+                     }
+
+                     if(PORTD.RD7==1){
+                     Delay_ms(500);
+                     PORTF.RF0=0;
+                     goto hh;
+                     }else{goto gg;}
+
+
+            hh:
+            ano=Bcd2Dec(ano);
+            mes=Bcd2Dec(mes);
+            dia=Bcd2Dec(dia);
+            hora=Bcd2Dec(hora);
+            minutos=Bcd2Dec(minutos);
+            segundos=Bcd2Dec(segundos);
+            dia_semana=Bcd2Dec(dia_semana);
+            set_datos_DS1307(segundos,minutos,hora,dia_semana,dia,mes,ano);
+
+         }
+            jj: //Presenta_datos();
+            //Delay_ms(100);
+        goto g;
+        }
+       
+       fhandle[0]  = FAT32_Open(identificador, FILE_APPEND ); //open/create TEXT.TXT
+       
+        Lcd_Out(1,1,"PRUEBA INICIA EN");                 // Write text in first row
+        PORTF.RF0=1;
+        Delay_ms(1000);
+        Lcd_Out(2,1,"     CINCO      ");                 // Write text in second row
+        PORTF.RF0=0;
+        
+        Lcd_Out(1,1,"OBTENIENDO DATOS");                 // Write text in first row
+        Lcd_Out(2,1,"POR FAVOR ESPERE");                 // Write text in second row
+
+
+         InitTimer1();
+     k:
+         if(bandera==0){
+         goto k;
+         }
+         bandera=0;
+         
+         Lcd_Out(1,1,"PRUEBA COMPLETA ");                 // Write text in first row
+         Lcd_Out(2,1,"YA PUEDE BAJARSE");                 // Write text in second row
+         FAT32_Close(fhandle[0]); // Close  TEXT.TXT file
+
+ p:
+        read_ads1222CHANNELS0();
+        Delay_us(1);
+        read_ads1222CHANNELS1();
+
+
+        if(S0calibrado>15000 && S1calibrado>15000 && S2calibrado>15000 && S3calibrado>15000){  //DETECCION DE UMBRAL(DETECTA SI LA PERSONA YA SE BAJO DE LA WBB)
+        goto p;
+        }
+       
+       Lcd_Out(1,1,"CALCULANDO INDIC");                 // Write text in first row
+       Lcd_Out(2,1,"POR FAVOR ESPERE");                 // Write text in second row
+
+
+       identificador2[0]=MSB(dia);identificador2[1]=LSB(dia);identificador2[2] = '-';identificador2[3]=MSB(mes);identificador2[4]=LSB(mes);identificador2[5] = '-';identificador2[6]=MSB(ano);identificador2[7]=LSB(ano);identificador2[8] = '-';
+       identificador2[9]=MSB(hora);identificador2[10]=LSB(hora);identificador2[11] = '-';identificador2[12]=MSB(minutos);identificador2[13]=LSB(minutos);identificador2[14] = '-';identificador2[15]=MSB(segundos);identificador2[16]=LSB(segundos);identificador2[17] = '-';
+       identificador2[18] = 'I';identificador2[19] = 'N';identificador2[20] = 'D';identificador2[21] = 'I';identificador2[22] = 'C';identificador2[23] = 'E';identificador2[24] = 'S';identificador2[25] = '.';identificador2[26] = 'T';identificador2[27] = 'X';identificador2[28] = 'T';
+        
+        fhandle[0]  = FAT32_Open(identificador, FILE_READ ); //open/read TEXT.TXT
+        fhandle[1]  = FAT32_Open(identificador2, FILE_WRITE ); //open/write TEXT.TXT
+        for (i = 0; i<1500;i++){                                                         //////////////////////////////////////////////////////////////////////////////////////////////////////
+           FAT32_Read(fhandle[0],ReadBuffer,65);
+              strncpy(obtx, ReadBuffer+24,7);
+              strncpy(obty, ReadBuffer+28,7);
+              FX=atof(obtx);
+              FY=atof(obty);
+              
+              SUMARD=SUMARD+sqrt(pow(FX,2)+pow(FY,2));
+              MML=MML+fabs(FX);
+              MAP=MAP+fabs(FY);
+              
+              SUMARD22=SUMARD22+pow(FX,2)+pow(FY,2);
+              RML=RML+pow(FX,2);
+              RAP=RAP+pow(FY,2);
+              RAPML=RAPML+(FX*FY);
+
+              if (i==0)
+              {
+              vx0=FX;
+              vy0=FY;
+              mix=vx0;
+              mx=vx0;
+              miy=vy0;
+              my=vy0;
+              }
+              if (i>=1)
+              {
+              vx1=FX;
+              vy1=FY;
+
+                     if(vx1>mx)
+                     {
+                     mx=vx1;
+                     }
+                     if(vx1<mix)
+                     {
+                     mix=vx1;
+                     }
+
+                     if(vy1>my)
+                     {
+                     my=vy1;
+                     }
+                     if(vy1<miy)
+                     {
+                     miy=vy1;
+                     }
+                     TOTEX=TOTEX+sqrt(pow((vx1-vx0),2)+pow((vy1-vy0),2));
+                     TOTEXML=TOTEXML+fabs(vx1-vx0);
+                     TOTEXAP=TOTEXAP+fabs(vy1-vy0);
+                     
+                     sumaswarea=sumaswarea+fabs((vy1*vx0)-(vy0*vx1));
+
+
+                     vx0=vx1;
+                     vy0=vy1;
+                     }
+        }
+              MDIST=(SUMARD)/1500;
+              MDISTML=(MML)/1500;
+              MDISTAP=(MAP)/1500;
+
+              RDIST=sqrt(SUMARD22/1500);
+              sML=sqrt(RML/1500);
+              sAP=sqrt(RAP/1500);
+              
+              MVELO=(TOTEX)/30;
+              MVELOML=(TOTEXML)/30;
+              MVELOAP=(TOTEXAP)/30;
+              
+              sRD=sqrt(pow(RDIST,2)-pow(MDIST,2));
+              AREACC=3.1416*pow(MDIST+(1.645*sRD),2);
+              sAPML=RAPML/1500;
+              AREACE=18.8496*sqrt((pow(sAP,2)*pow(sML,2))-pow(sAPML,2));
+              AREASW=(sumaswarea)/(2*30);
+              MFREQ=(MVELO)/(6.2832*MDIST);
+              MFREQML=(MVELOML)/(5.65685424*MDISTML);
+              MFREQAP=(MVELOAP)/(5.65685424*MDISTAP);
+
+              dFDCC=2*(MDIST+(1.645*sRD));
+              dFDCE=sqrt(24*sqrt((pow(sAP,2)*pow(sML,2))-pow(sAPML,2)));
+              FDCC=log10(1500)/log10((1500*dFDCC)/TOTEX);
+              FDCE=log10(1500)/log10((1500*dFDCE)/TOTEX);
+              RAX=fabs(mix-mx);
+              RAY=fabs(miy-my);
+
+   
+              FAT32_Write(fhandle[1],"MDIST:",6);
+              FAT32_Write(fhandle[1],CMDIST, strlen(CMDIST));
+              FAT32_Write(fhandle[1],"\r\n", 2);
+              FAT32_Write(fhandle[1],"MDISTML:",8);
+              FAT32_Write(fhandle[1],CMDISTML, strlen(CMDISTML));
+              FAT32_Write(fhandle[1],"\r\n", 2);
+              FAT32_Write(fhandle[1],"MDISTAP:",8);
+              FAT32_Write(fhandle[1],CMDISTAP, strlen(CMDISTAP));
+              FAT32_Write(fhandle[1],"\r\n", 2);
+              FAT32_Write(fhandle[1],"RDIST:",6);
+              FAT32_Write(fhandle[1],CRDIST, strlen(CRDIST));
+              FAT32_Write(fhandle[1],"\r\n", 2);
+              FAT32_Write(fhandle[1],"RDISTML:",8);
+              FAT32_Write(fhandle[1],CsML, strlen(CsML));
+              FAT32_Write(fhandle[1],"\r\n", 2);
+              FAT32_Write(fhandle[1],"RDISTAP:",8);
+              FAT32_Write(fhandle[1],CsAP, strlen(CsAP));
+              FAT32_Write(fhandle[1],"\r\n", 2);
+              FAT32_Write(fhandle[1],"TOTEX:",6);
+              FAT32_Write(fhandle[1],CTOTEX, strlen(CTOTEX));
+              FAT32_Write(fhandle[1],"\r\n", 2);
+              FAT32_Write(fhandle[1],"TOTEXML:",8);
+              FAT32_Write(fhandle[1],CTOTEXML, strlen(CTOTEXML));
+              FAT32_Write(fhandle[1],"\r\n", 2);
+              FAT32_Write(fhandle[1],"TOTEXAP:",8);
+              FAT32_Write(fhandle[1],CTOTEXAP, strlen(CTOTEXAP));
+              FAT32_Write(fhandle[1],"\r\n", 2);
+              FAT32_Write(fhandle[1],"MVELO:",6);
+              FAT32_Write(fhandle[1],CMVELO, strlen(CMVELO));
+              FAT32_Write(fhandle[1],"\r\n", 2);
+              FAT32_Write(fhandle[1],"MVELOML:",8);
+              FAT32_Write(fhandle[1],CMVELOML, strlen(CMVELOML));
+              FAT32_Write(fhandle[1],"\r\n", 2);
+              FAT32_Write(fhandle[1],"MVELOAP:",8);
+              FAT32_Write(fhandle[1],CMVELOAP, strlen(CMVELOAP));
+              FAT32_Write(fhandle[1],"\r\n", 2);
+              FAT32_Write(fhandle[1],"sRD:",4);
+              FAT32_Write(fhandle[1],CsRD, strlen(CsRD));
+              FAT32_Write(fhandle[1],"\r\n", 2);
+              FAT32_Write(fhandle[1],"AREA-CC:",8);
+              FAT32_Write(fhandle[1],CAREACC, strlen(CAREACC));
+              FAT32_Write(fhandle[1],"\r\n", 2);
+              FAT32_Write(fhandle[1],"sAPML:",6);
+              FAT32_Write(fhandle[1],CsAPML, strlen(CsAPML));
+              FAT32_Write(fhandle[1],"\r\n", 2);
+              FAT32_Write(fhandle[1],"AREA-CE:",8);
+              FAT32_Write(fhandle[1],CAREACE, strlen(CAREACE));
+              FAT32_Write(fhandle[1],"\r\n", 2);
+              FAT32_Write(fhandle[1],"AREA-SW:",8);
+              FAT32_Write(fhandle[1],CAREASW, strlen(CAREASW));
+              FAT32_Write(fhandle[1],"\r\n", 2);
+              FAT32_Write(fhandle[1],"MFREQ:",6);
+              FAT32_Write(fhandle[1],CMFREQ, strlen(CMFREQ));
+              FAT32_Write(fhandle[1],"\r\n", 2);
+              FAT32_Write(fhandle[1],"MFREQML:",8);
+              FAT32_Write(fhandle[1],CMFREQML, strlen(CMFREQML));
+              FAT32_Write(fhandle[1],"\r\n", 2);
+              FAT32_Write(fhandle[1],"MFREQAP:",8);
+              FAT32_Write(fhandle[1],CMFREQAP, strlen(CMFREQAP));
+              FAT32_Write(fhandle[1],"\r\n", 2);
+              FAT32_Write(fhandle[1],"FD-CC:",6);
+              FAT32_Write(fhandle[1],CFDCC, strlen(CFDCC));
+              FAT32_Write(fhandle[1],"\r\n", 2);
+              FAT32_Write(fhandle[1],"FD-CE:",6);
+              FAT32_Write(fhandle[1],CFDCE, strlen(CFDCE));
+              FAT32_Write(fhandle[1],"\r\n", 2);
+              FAT32_Write(fhandle[1],"RANGEML:",8);
+              FAT32_Write(fhandle[1],CRAX, strlen(CRAX));
+              FAT32_Write(fhandle[1],"\r\n", 2);
+              FAT32_Write(fhandle[1],"RANGEAP:",8);
+              FAT32_Write(fhandle[1],CRAY, strlen(CRAY));
+              FAT32_Write(fhandle[1],"\r\n", 2);
+              FAT32_Write(fhandle[1],"RIESGO: XX.XX%",14);
+         FAT32_Close(fhandle[0]); // Close  TEXT.TXT file
+         FAT32_Close(fhandle[1]); // Close  TEXT.TXT file
+         
+
+         COPX=0;COPY=0;FX=0;FY=0;SUMARD=0;MML=0;MAP=0;SUMARD22=0;RML=0;RAP=0;MDIST=0;MDISTML=0;MDISTAP=0;RDIST=0;sML=0;sAP=0;vx0=0;vx1=0;vy0=0;vy1=0;mix=0;mx=0;miy=0;my=0;TOTEX=0;TOTEXML=0;TOTEXAP=0;MVELO=0;MVELOML=0;MVELOAP=0;sRD=0;AREACC=0;sAPML=0;RAPML=0;AREACE=0;AREASW=0;sumaswarea=0;MFREQ=0;MFREQML=0;MFREQAP=0;dFDCC=0;dFDCE=0;FDCC=0;FDCE=0;RAX=0;RAY=0;
+
+         Lcd_Out(1,1,"FIN DE LA PRUEBA");                 // Write text in first row
+         Lcd_Out(2,1," RIESGO  XX.XX% ");                 // Write text in second row
+         
+         Delay_ms(10000);// UN MOMENTO ANTES DE COMENZAR UNA PRUEBA MAS
+         contador=0;
+         
+         F0=0;
+         F1=0;
+         F2=0;
+         F3=0;
+
+         goto a;
+      /*while(1){
+      }*/
+}
