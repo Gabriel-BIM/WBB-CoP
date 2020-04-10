@@ -1,3 +1,11 @@
+Authors: Ángel Gabriel Estévez Pedraza & Rigoberto Martínez Méndez
+Creation date: 17 de Noviembre de 2018.
+Language: C.
+Compiler: mickroC
+Device: dsPIC30F6014
+
+This code decodes and processes the the WBB signals and calculates the CoP and derived indexes.
+
 // LCD module connections
 sbit LCD_RS at LATG0_bit;
 sbit LCD_EN at LATA6_bit;
