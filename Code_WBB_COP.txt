@@ -4,7 +4,7 @@ Language: C.
 Compiler: mickroC
 Device: dsPIC30F6014
 
-This code decodes and processes the the WBB signals and calculates the CoP and derived indexes.
+Firmware that decodes and processes the the WBB signals and calculates the CoP and derived indexes.
 
 // LCD module connections
 sbit LCD_RS at LATG0_bit;
